@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "salesforce.mule-dx-extension-pack",
+        "salesforce.mule-dx-vscode",
+        "salesforce.mule-dx-mule-runtime",
+        "mulesoftinc.dataweave"
+    ]
+}

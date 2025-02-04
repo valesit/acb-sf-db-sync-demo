@@ -1,0 +1,28 @@
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd         http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd  http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd  http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+  
+  <salesforce:sfdc-config name="My_Salesforce_Connection">
+    <salesforce:basic-connection password="Khanyi19" username="sitholevalentin@gmail.com"></salesforce:basic-connection>
+  </salesforce:sfdc-config>
+  <db:config name="Config">
+    <db:my-sql-connection password="Prayer2023-09-09" database="Contactsdb" port="32696" host="cloud-services.demos.mulesoft.com" user="vsithole"></db:my-sql-connection>
+  </db:config>
+  <flow name="ContactsSync">
+    <salesforce:new-object-listener config-ref="My_Salesforce_Connection" doc:id="12345678-1234-5678-1234-567890abcdef" doc:name="Salesforce" objectType="Contact">
+      <scheduling-strategy>
+        <fixed-frequency timeUnit="MINUTES" frequency="1"></fixed-frequency>
+      </scheduling-strategy>
+    </salesforce:new-object-listener>
+
+    <db:insert config-ref="Config" doc:id="34567890-3456-7890-3456-789012cdef01" doc:name="Insert Contact">
+      <db:sql>
+        <![CDATA[INSERT INTO contacts (name, account_name, email, phone) VALUES (:name, :account_name, :email, :phone);]]>
+      </db:sql>
+      <db:input-parameters><![CDATA[#[{
+            "name": payload.Name,
+            "account_name" :payload.AccountId,
+           "email": payload.Email,
+            "phone": payload.Phone
+        }]]]></db:input-parameters>
+    </db:insert>
+  </flow>
+</mule>
