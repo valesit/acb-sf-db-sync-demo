@@ -1,10 +1,10 @@
 <mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd         http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd  http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd  http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
   
   <salesforce:sfdc-config name="My_Salesforce_Connection">
-    <salesforce:basic-connection password="Khanyi19" username="sitholevalentin@gmail.com"></salesforce:basic-connection>
+    <salesforce:basic-connection password="#Prayer2027" username="sitholevalentin@gmail.com"></salesforce:basic-connection>
   </salesforce:sfdc-config>
   <db:config name="Config">
-    <db:my-sql-connection password="Prayer2023-09-09" database="Contactsdb" port="32696" host="cloud-services.demos.mulesoft.com" user="vsithole"></db:my-sql-connection>
+    <db:my-sql-connection database="Contactsdb" host="cloud-services.demos.mulesoft.com" password="Prayer2023-09-09" port="31349" user="vsithole"></db:my-sql-connection>
   </db:config>
   <flow name="ContactsSync">
     <salesforce:new-object-listener config-ref="My_Salesforce_Connection" doc:id="12345678-1234-5678-1234-567890abcdef" doc:name="Salesforce" objectType="Contact">
@@ -25,4 +25,129 @@
         }]]]></db:input-parameters>
     </db:insert>
   </flow>
+  <!-- [ACB] <flow name="MySQLToSalesforceSync" doc:id="mysql-sf-sync-flow">
+        <scheduler doc:name="Scheduler" doc:id="scheduler-mysql-sync">
+            <scheduling-strategy>
+                <fixed-frequency timeUnit="MINUTES" frequency="3"/>
+            </scheduling-strategy>
+        </scheduler>
+        <db:select config-ref="Config" doc:name="Select Changed Contacts" doc:id="select-changed-contacts">
+            <db:sql><![CDATA[SELECT * FROM contacts WHERE last_modified > DATE_SUB(NOW(), INTERVAL 5 MINUTE)]]></db:sql>
+        </db:select>
+        <logger level="INFO" doc:name="Log MySQL Changes" doc:id="log-mysql-changes" message="Found #[sizeOf(payload)] changed contacts in MySQL"/>
+        <foreach doc:name="For Each Contact" doc:id="foreach-contact">
+            <logger level="INFO" doc:name="Log Contact Processing" doc:id="log-contact-processing" message="Processing contact: #[payload.email]"/>
+            <ee:transform doc:name="Transform to Salesforce Contact" doc:id="transform-to-sf">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+&#45;&#45;-
+[{
+    LastName: payload.name,
+    Email: payload.email,
+    Phone: payload.phone,
+    Department: payload.department,
+    Title: payload.title,
+    AccountId: payload.account_name
+}]]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <salesforce:upsert doc:name="Upsert Contact to Salesforce" doc:id="upsert-sf-contact" 
+                              config-ref="My_Salesforce_Connection" 
+                              objectType="Contact" 
+                              externalIdFieldName="Email"/>
+            <logger level="INFO" doc:name="Log Success" doc:id="log-success" message="Successfully synced contact to Salesforce: #[payload.Email]"/>
+        </foreach>
+        <error-handler>
+            <on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="on-error-continue">
+                <logger level="ERROR" doc:name="Log Error" doc:id="log-error" message="Error syncing contacts to Salesforce: #[error.description]"/>
+            </on-error-continue>
+        </error-handler>
+    </flow> [ACB] -->
+    
+    <!-- Real-time MySQL to Salesforce Sync Flow -->
+    <flow name="RealTimeMySQLToSalesforceSync" doc:id="realtime-mysql-sf-sync-flow">
+        <db:listener config-ref="Config" doc:name="On Table Row Listener" doc:id="on-table-row-listener" table="contacts" watermarkColumn="id" idColumn="email">
+            <scheduling-strategy>
+                <fixed-frequency frequency="10" timeUnit="SECONDS"/>
+            </scheduling-strategy>
+        </db:listener>
+        
+        <set-variable variableName="originalPayload" value="#[payload]" doc:name="Store Original Payload" doc:id="store-original-payload"/>
+        
+        <logger level="INFO" doc:name="Log Database Change" doc:id="log-db-change" message="Real-time change detected in contacts table: ID=#[payload.id], Email=#[payload.email]"/>
+        
+        <!-- Since db:listener doesn't provide operation type, we'll treat all as INSERT/UPDATE and use upsert -->
+        <logger level="INFO" doc:name="Log Insert/Update Operation" doc:id="log-insert-update-op" message="Processing INSERT/UPDATE operation for contact: #[payload.email]"/>
+        
+        <ee:transform doc:name="Transform to Salesforce Contact" doc:id="transform-to-sf-realtime">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+[{
+    LastName: payload.name,
+    Email: payload.email,
+    Phone: payload.phone,
+    Department: payload.department,
+    Title: payload.title,
+    AccountId: payload.account_name
+}]]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        
+        <salesforce:upsert doc:name="Upsert Contact to Salesforce" doc:id="upsert-sf-contact-realtime" 
+                          config-ref="My_Salesforce_Connection" 
+                          objectType="Contact" 
+                          externalIdFieldName="Email"/>
+        
+        <logger level="INFO" doc:name="Log Upsert Success" doc:id="log-upsert-success" message="Successfully synced contact to Salesforce: #[payload[0].Email]"/>
+        
+        <error-handler>
+            <on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="on-error-continue-realtime">
+                <logger level="ERROR" doc:name="Log Real-time Sync Error" doc:id="log-realtime-error" message="Error in real-time sync: #[error.description] - Contact: #[vars.originalPayload.email default 'unknown']"/>
+            </on-error-continue>
+        </error-handler>
+    </flow>
+    
+    <!-- Backup Scheduler Flow - Keep existing MySQLToSalesforceSync -->
+    <!-- [ACB] <flow name="MySQLToSalesforceSync" doc:id="mysql-sf-sync-flow">
+        <scheduler doc:name="Scheduler" doc:id="scheduler-mysql-sync">
+            <scheduling-strategy>
+                <fixed-frequency timeUnit="MINUTES" frequency="3"/>
+            </scheduling-strategy>
+        </scheduler>
+        <db:select config-ref="Config" doc:name="Select Changed Contacts" doc:id="select-changed-contacts">
+            <db:sql><![CDATA[SELECT * FROM contacts WHERE last_modified > DATE_SUB(NOW(), INTERVAL 5 MINUTE)]]></db:sql>
+        </db:select>
+        <logger level="INFO" doc:name="Log MySQL Changes" doc:id="log-mysql-changes" message="Found #[sizeOf(payload)] changed contacts in MySQL"/>
+        <foreach doc:name="For Each Contact" doc:id="foreach-contact">
+            <logger level="INFO" doc:name="Log Contact Processing" doc:id="log-contact-processing" message="Processing contact: #[payload.email]"/>
+            <ee:transform doc:name="Transform to Salesforce Contact" doc:id="transform-to-sf">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+&#45;&#45;-
+[{
+    LastName: payload.name,
+    Email: payload.email,
+    Phone: payload.phone,
+    Department: payload.department,
+    Title: payload.title,
+    AccountId: payload.account_name
+}]]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <salesforce:upsert doc:name="Upsert Contact to Salesforce" doc:id="upsert-sf-contact" 
+                              config-ref="My_Salesforce_Connection" 
+                              objectType="Contact" 
+                              externalIdFieldName="Email"/>
+            <logger level="INFO" doc:name="Log Success" doc:id="log-success" message="Successfully synced contact to Salesforce: #[payload.Email]"/>
+        </foreach>
+        <error-handler>
+            <on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="on-error-continue">
+                <logger level="ERROR" doc:name="Log Error" doc:id="log-error" message="Error syncing contacts to Salesforce: #[error.description]"/>
+            </on-error-continue>
+        </error-handler>
+    </flow> [ACB] -->
 </mule>
